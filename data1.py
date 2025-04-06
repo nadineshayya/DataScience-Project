@@ -303,7 +303,7 @@ def main():
 
     all_recipes = []
     print(f"Starting to scrape {len(limited_category_urls)} categories.")
-    with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+    with concurrent.futures.ThreadPoolExecutor(max_workers=2) as executor:
         future_to_url = {executor.submit(scrape_one_category, url): url for url in limited_category_urls}
         for future in concurrent.futures.as_completed(future_to_url):
             cat_url = future_to_url[future]
