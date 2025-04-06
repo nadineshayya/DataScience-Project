@@ -291,11 +291,24 @@ def clean_data(df):
       - Replace publish_date 'Not found' with 'Unknown publish date'
       - Replace cooking_time 'Not found' with 'Unknown cooking time'
     """
+    # Check if the DataFrame has the expected 'title' column
+    if 'title' not in df.columns:
+        print("Warning: 'title' column not found in DataFrame. Skipping cleaning.")
+        return df
+
     df_clean = df[~df['title'].str.contains("Title not found", na=False)]
-    df_clean = df_clean[~df_clean['ingredients'].astype(str).str.contains("Ingredients not found")]
-    df_clean['publish_date'] = df_clean['publish_date'].replace("Not found", "Unknown publish date")
-    df_clean['cooking_time'] = df_clean['cooking_time'].replace("Not found", "Unknown cooking time")
+    
+    if 'ingredients' in df_clean.columns:
+        df_clean = df_clean[~df_clean['ingredients'].astype(str).str.contains("Ingredients not found")]
+    
+    if 'publish_date' in df_clean.columns:
+        df_clean['publish_date'] = df_clean['publish_date'].replace("Not found", "Unknown publish date")
+    
+    if 'cooking_time' in df_clean.columns:
+        df_clean['cooking_time'] = df_clean['cooking_time'].replace("Not found", "Unknown cooking time")
+    
     return df_clean
+
 
 def main():
     # Load existing CSV for deduplication if it exists
