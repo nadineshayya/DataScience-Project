@@ -274,9 +274,15 @@ def scrape_category(category_url, driver):
 
 def scrape_one_category(category_url):
     driver = init_driver()
-    recipes = scrape_category(category_url, driver)
-    driver.quit()
-    return recipes
+    try:
+        recipes = scrape_category(category_url, driver)
+        valid_recipes = [
+            r for r in recipes 
+            if r.get('title') and r['title'] != "Title not found" and r.get('url')
+        ]
+        return valid_recipes
+    finally:
+        driver.quit()
 
 def clean_data(df):
     """
@@ -328,10 +334,11 @@ def main():
 
     # Deduplicate recipes by URL
     new_recipes = {
-        recipe["url"]: recipe
-        for recipe in all_recipes
-        if recipe["url"] not in existing_urls
-    }
+    recipe["url"]: recipe
+    for recipe in all_recipes
+    if recipe.get("url") and recipe.get("title") and recipe["title"] != "Title not found" and recipe["url"] not in existing_urls
+}
+
 
     # Create DataFrame and clean data
     df_new = pd.DataFrame(list(new_recipes.values()))
