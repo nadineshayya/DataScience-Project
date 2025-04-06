@@ -17,24 +17,35 @@ jobs:
       with:
         python-version: '3.9'
     
-    - name: Install dependencies
+    - name: Install system dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y chromium-browser chromium-chromedriver
+        
+    - name: Install Python packages
       run: |
         python -m pip install --upgrade pip
-        pip install beautifulsoup4 requests pandas selenium lxml
+        pip install -r requirements.txt
         
     - name: Scrape AllRecipes
       run: python data.py --site allrecipes
       env:
+        CHROME_PATH: /usr/bin/chromium-browser
+        CHROMEDRIVER_PATH: /usr/bin/chromedriver
         OUTPUT_FILE: allrecipes_limited_categories.csv
         
     - name: Scrape RecipeTinEats
       run: python data1.py --site recipetineats
       env:
+        CHROME_PATH: /usr/bin/chromium-browser
+        CHROMEDRIVER_PATH: /usr/bin/chromedriver
         OUTPUT_FILE: recipetineats_limited_categories.csv
         
     - name: Scrape SpruceEats
       run: python scraper.py --site spruceeats
       env:
+        CHROME_PATH: /usr/bin/chromium-browser
+        CHROMEDRIVER_PATH: /usr/bin/chromedriver
         OUTPUT_FILE: spruce_eats_recipes.csv
         
     - name: Clean and merge data
