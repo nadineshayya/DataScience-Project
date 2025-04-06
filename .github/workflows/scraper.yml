@@ -2,44 +2,48 @@ name: Daily Recipe Scraping
 
 on:
   schedule:
-    - cron: '0 3 * * *'
+    - cron: '0 3 * * *'  # Runs daily at 3am UTC
   workflow_dispatch:
 
-permissions:
-  contents: write  # <-- Allows commit & push
-
 jobs:
-  scrape-and-update:
+  scrape:
     runs-on: ubuntu-latest
+    
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v3
-
-      - name: Set up Python
-        uses: actions/setup-python@v4
-        with:
-          python-version: '3.9'
-
-      - name: Install dependencies
-        run: |
-          python -m pip install --upgrade pip
-          pip install -r requirements.txt
-
-      - name: Run all scrapers
-        run: |
-          python data.py --site allrecipes --output allrecipes_limited_categories.csv
-          python data1.py --site recipetineats --output recipetineats_limited_categories.csv
-          python scraper.py --site spruceeats --output spruce_eats_recipes.csv
-
-      - name: Process and merge data
-        run: |
-          python clean_and_merge.py
-
-      - name: Commit and push changes
-        run: |
-          git config --global user.name "GitHub Actions Bot"
-          git config --global user.email "actions-bot@github.com"
-          git add .
-          # Only commit if there are changes. If there are no changes, this step won't fail.
-          git diff --quiet && git diff --staged --quiet || git commit -m "Automatic daily data update [skip ci]"
-          git push
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install beautifulsoup4 requests pandas selenium lxml
+        
+    - name: Scrape AllRecipes
+      run: python data.py --site allrecipes
+      env:
+        OUTPUT_FILE: allrecipes_limited_categories.csv
+        
+    - name: Scrape RecipeTinEats
+      run: python data1.py --site recipetineats
+      env:
+        OUTPUT_FILE: recipetineats_limited_categories.csv
+        
+    - name: Scrape SpruceEats
+      run: python scraper.py --site spruceeats
+      env:
+        OUTPUT_FILE: spruce_eats_recipes.csv
+        
+    - name: Clean and merge data
+      run: python clean_and_merge.py
+      
+    - name: Commit and push changes
+      run: |
+        git config --global user.name "GitHub Actions"
+        git config --global user.email "actions@github.com"
+        git add .
+        git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update scraped data"
+        git push
