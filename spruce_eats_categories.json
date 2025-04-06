@@ -1,0 +1,96 @@
+[
+  {
+    "name": "Breakfast & Brunch",
+    "url": "https://www.thespruceeats.com/breakfast-brunch-4162826",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Lunch",
+    "url": "https://www.thespruceeats.com/lunch-4162818",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Appetizers & Snacks",
+    "url": "https://www.thespruceeats.com/appetizers-snacks-4162810",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Dinner",
+    "url": "https://www.thespruceeats.com/dinner-4162806",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Desserts",
+    "url": "https://www.thespruceeats.com/dessert-4162795",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Side Dishes",
+    "url": "https://www.thespruceeats.com/side-dishes-4162722",
+    "parent_category": "Recipes"
+  },
+  {
+    "name": "Breads",
+    "url": "https://www.thespruceeats.com/breads-4162750",
+    "parent_category": "Recipes"
+  },
+ 
+  {
+    "name": "American Food",
+    "url": "https://www.thespruceeats.com/american-4162675",
+    "parent_category": "By Region"
+  },
+  {
+    "name": "African Food",
+    "url": "https://www.thespruceeats.com/african-food-4162459",
+    "parent_category": "By Region"
+  },
+  {
+    "name": "Australian Food",
+    "url": "https://www.thespruceeats.com/australian-food-4162464",
+    "parent_category": "By Region"
+  },
+  {
+    "name": "Chicken Recipes",
+    "url": "https://www.thespruceeats.com/chicken-4162452",
+    "parent_category": "Ingredients"
+  },
+  {
+    "name": "Beef Recipes",
+    "url": "https://www.thespruceeats.com/beef-4162451",
+    "parent_category": "Ingredients"
+  },
+ 
+  {
+    "name": "Fish & Seafood",
+    "url": "https://www.thespruceeats.com/fish-seafood-4162437",
+    "parent_category": "Ingredients"
+  },
+  {
+    "name": "Fruit & Veggie Recipes",
+    "url": "https://www.thespruceeats.com/fruits-veggies-4162428",
+    "parent_category": "Ingredients"
+  },
+  {
+    "name": "Cheese Recipes",
+    "url": "https://www.thespruceeats.com/cheese-4162401",
+    "parent_category": "Ingredients"
+  },
+  
+  {
+    "name": "St. Patrick's Day",
+    "url": "https://www.thespruceeats.com/st-patricks-day-foods-4162278",
+    "parent_category": "Occasions"
+  },
+  {
+    "name": "Passover",
+    "url": "https://www.thespruceeats.com/passover-4162265",
+    "parent_category": "Occasions"
+  },
+  {
+    "name": "Easter",
+    "url": "https://www.thespruceeats.com/easter-foods-4162273",
+    "parent_category": "Occasions"
+  }
+
+]
