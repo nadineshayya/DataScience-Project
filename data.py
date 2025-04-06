@@ -213,15 +213,29 @@ def scrape_recipe(url, driver):
         if byline_elem:
             publish_date = byline_elem.get_text(strip=True)
 
-    return {
-        "url": url,
-        "title": title,
-        "ingredients": ingredients,
-        "cooking_time": cooking_time,
-        "nutrition_facts": nutrition_facts,
-        "publish_date": publish_date,
-        "scraped_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    }
+    # Ensure a standard return structure even in case of unexpected errors
+    try:
+        return {
+            "url": url,
+            "title": title or "Title not found",
+            "ingredients": ingredients or ["Ingredients not found"],
+            "cooking_time": cooking_time or "Unknown cooking time",
+            "nutrition_facts": nutrition_facts or {},
+            "publish_date": publish_date or "Unknown publish date",
+            "scraped_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
+    except Exception as e:
+        print(f"Critical error in scraping {url}: {e}")
+        # Guaranteed fallback:
+        return {
+            "url": url,
+            "title": "Title not found",
+            "ingredients": ["Ingredients not found"],
+            "cooking_time": "Unknown cooking time",
+            "nutrition_facts": {},
+            "publish_date": "Unknown publish date",
+            "scraped_date": datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        }
 
 def scrape_category(category_url, driver):
     """
@@ -246,9 +260,12 @@ def scrape_category(category_url, driver):
             seen_urls.add(link)
             try:
                 recipe = scrape_recipe(link, driver)
-                recipe['category'] = category_name
-                recipes.append(recipe)
-                print(f"Scraped: {recipe['title']} from {link}")
+                if recipe and 'title' in recipe and recipe['title'] != "Title not found":
+                    recipe['category'] = category_name
+                    recipes.append(recipe)
+                    print(f"Scraped: {recipe['title']} from {link}")
+                else:
+                    print(f"Skipped invalid recipe at {link}")
             except Exception as e:
                 print(f"Error scraping {link}: {e}")
         page += 1
