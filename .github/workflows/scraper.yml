@@ -36,7 +36,7 @@ jobs:
       - name: Run Spruce Eats Scraper
         run: |
           # Assuming your Spruce Eats scraper code is in spruce_eats_scraper.py
-          python spruce_eats_scraper.py
+          python scraper.py
 
       - name: Run Data Clean and Merge Script
         run: |
