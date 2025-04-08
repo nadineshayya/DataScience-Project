@@ -55,8 +55,10 @@ jobs:
       
     - name: Commit and push changes
       run: |
+        name: Commit and push changes
+        run: |
         git config --global user.name "GitHub Actions"
         git config --global user.email "actions@github.com"
         git add .
         git diff --quiet && git diff --staged --quiet || git commit -m "Auto-update scraped data"
-        git push
+        git push https://${{ secrets.Token_Actions}}@github.com/nadineshayya/DataScience-Project.git main
