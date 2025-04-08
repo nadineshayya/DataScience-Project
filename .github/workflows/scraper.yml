@@ -1,62 +1,53 @@
-name: Daily Recipe Scraping
+name: Daily Scrape and Merge
 
 on:
   schedule:
-    - cron: '0 3 * * *'  # Runs daily at 3am UTC
+    - cron: '0 0 * * *'  # Runs daily at midnight UTC
   workflow_dispatch:
 
 jobs:
-  scrape:
+  build:
     runs-on: ubuntu-latest
-    
+
     steps:
-      - uses: actions/checkout@v3
-      
+      - name: Check out repository
+        uses: actions/checkout@v3
+
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
           python-version: '3.9'
-      
-      - name: Install system dependencies
+
+      - name: Install dependencies
         run: |
-          sudo apt-get update
-          sudo apt-get install -y chromium-browser chromium-chromedriver
-      
-      - name: Install Python packages
+          pip install --upgrade pip
+          pip install pandas selenium webdriver_manager beautifulsoup4
+
+      - name: Run AllRecipes Scraper
         run: |
-          python -m pip install --upgrade pip
-          pip install beautifulsoup4 requests pandas selenium lxml webdriver-manager html5lib cssselect
-      
-      - name: Scrape AllRecipes
-        run: python data.py --site allrecipes
-        env:
-          CHROME_PATH: /usr/bin/chromium-browser
-          CHROMEDRIVER_PATH: /usr/bin/chromedriver
-          OUTPUT_FILE: allrecipes_limited_categories.csv
-      
-      - name: Scrape RecipeTinEats
-        run: python data1.py --site recipetineats
-        env:
-          CHROME_PATH: /usr/bin/chromium-browser
-          CHROMEDRIVER_PATH: /usr/bin/chromedriver
-          OUTPUT_FILE: recipetineats_limited_categories.csv
-      
-      - name: Scrape SpruceEats
-        run: python scraper.py --site spruceeats
-        env:
-          CHROME_PATH: /usr/bin/chromium-browser
-          CHROMEDRIVER_PATH: /usr/bin/chromedriver
-          OUTPUT_FILE: spruce_eats_recipes.csv
-      
-      - name: Clean and merge data
-        run: python clean_and_merge.py
-      
-      - name: Commit and push changes
+          # Assuming your AllRecipes scraper code is in allrecipes_scraper.py
+          python data.py
+
+      - name: Run Recipetineats
         run: |
-          git config --global user.name "GitHub Actions"
-          git config --global user.email "actions@github.com"
+          # Assuming your AllRecipes scraper code is in allrecipes_scraper.py
+          python data1.py
+
+      - name: Run Spruce Eats Scraper
+        run: |
+          # Assuming your Spruce Eats scraper code is in spruce_eats_scraper.py
+          python spruce_eats_scraper.py
+
+      - name: Run Data Clean and Merge Script
+        run: |
+          # Assuming your cleaning and merging code is in clean_merge.py
+          python clean_merge.py
+
+      - name: Commit and push any changes
+        run: |
+          git config user.name "github-actions"
+          git config user.email "github-actions@github.com"
           git add .
-          if ! git diff --quiet || ! git diff --staged --quiet; then
-            git commit -m "Auto-update scraped data"
-          fi
-          git push https://${{ secrets.Token_Actions }}@github.com/nadineshayya/DataScience-Project.git main
+          git add combined_cleaned.csv
+          git commit -m "Daily data scrape and merge update [skip ci]" || echo "Nothing to commit"
+          git push
