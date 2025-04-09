@@ -12,6 +12,9 @@ jobs:
     steps:
       - name: Check out repository
         uses: actions/checkout@v3
+        with:
+          # Ensure that the provided GITHUB_TOKEN is available for subsequent Git commands
+          persist-credentials: true
 
       - name: Set up Python
         uses: actions/setup-python@v4
@@ -25,29 +28,34 @@ jobs:
 
       - name: Run AllRecipes Scraper
         run: |
-          # Assuming your AllRecipes scraper code is in allrecipes_scraper.py
+          # Assuming your AllRecipes scraper code is in data.py
           python data.py
 
-      - name: Run Recipetineats
+      - name: Run Recipetineats Scraper
         run: |
-          # Assuming your AllRecipes scraper code is in allrecipes_scraper.py
+          # Assuming your Recipetineats scraper code is in data1.py
           python data1.py
 
       - name: Run Spruce Eats Scraper
         run: |
-          # Assuming your Spruce Eats scraper code is in spruce_eats_scraper.py
+          # Assuming your Spruce Eats scraper code is in scraper.py
           python scraper.py
 
       - name: Run Data Clean and Merge Script
         run: |
-          # Assuming your cleaning and merging code is in clean_merge.py
+          # Assuming your cleaning and merging code is in clean_and_merge.py
           python clean_and_merge.py
+
+      - name: Update remote URL for authentication
+        run: |
+          # This updates the remote URL to use the provided GITHUB_TOKEN,
+          # ensuring push operations are properly authenticated.
+          git remote set-url origin https://${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git
 
       - name: Commit and push any changes
         run: |
           git config user.name "github-actions"
           git config user.email "github-actions@github.com"
           git add .
-          git add combined_cleaned.csv
           git commit -m "Daily data scrape and merge update [skip ci]" || echo "Nothing to commit"
-          git push
+          git push origin main
