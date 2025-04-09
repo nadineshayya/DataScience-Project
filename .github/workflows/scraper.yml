@@ -41,7 +41,7 @@ jobs:
       - name: Run Data Clean and Merge Script
         run: |
           # Assuming your cleaning and merging code is in clean_merge.py
-          python clean_merge.py
+          python clean_and_merge.py
 
       - name: Commit and push any changes
         run: |
