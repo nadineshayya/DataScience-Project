@@ -17,10 +17,15 @@ from dateutil import parser
 # Machine Learning Imports
 from sklearn.model_selection import train_test_split
 from sklearn.pipeline import Pipeline
-from sklearn.linear_model import LinearRegression
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.linear_model import LinearRegression, Ridge
+from sklearn.preprocessing import StandardScaler, RobustScaler, LabelEncoder
 from sklearn.impute import SimpleImputer
 from sklearn.metrics import mean_squared_error, r2_score
+from sklearn.neighbors import NearestNeighbors
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.decomposition import TruncatedSVD
+from sklearn.ensemble import RandomForestRegressor, GradientBoostingClassifier
+from scipy.optimize import minimize
 
 st.set_page_config(page_title="🍽 Recipe Insight Hub", layout="wide")
 DATA_PATH = Path("combined_cleaned.csv")
@@ -28,22 +33,21 @@ DATA_PATH = Path("combined_cleaned.csv")
 @st.cache_data(show_spinner="Loading recipes …")
 def load_data(path: Path = DATA_PATH) -> pd.DataFrame:
     df = pd.read_csv(path)
-
+    print("Original columns:", df.columns.tolist())  # Debug print
+    
     # Parse dates
     df["publish_date"] = df["publish_date"].apply(lambda x: _parse_date(str(x)))
-
- 
     df["cook_min"] = df["cooking_time"].apply(_to_minutes)
-
- 
-    df[["calories", "fat_g", "carb_g", "protein_g"]] = df["nutrition_facts"].apply(_parse_nutrition)
-
-   
+    
+    # Parse nutrition facts
+    nutrition_cols = ["calories", "fat_g", "carb_g", "protein_g"]
+    df[nutrition_cols] = df["nutrition_facts"].apply(_parse_nutrition)
+    print("After parsing nutrition:", df.columns.tolist())  # Debug print
+    
     df["ing_list"] = df["ingredients"].str.split(r"\s*;\s*")
     return df
 
 # Helper functions
-
 def _parse_date(s: str):
     try:
         return parser.parse(s, dayfirst=True)
@@ -67,8 +71,6 @@ def _parse_nutrition(s: str):
     # Ensure exactly four values, pad with NaN if necessary
     return pd.Series([int(x) for x in nums[:4]] + [np.nan] * (4 - len(nums)))
 
-
-
 @lru_cache(maxsize=None)
 def keyword_bank():
     return {
@@ -86,22 +88,245 @@ def classify_ing(ing: str) -> str:
         if any(w in low for w in words):
             return grp
     return "Other"
+### 1. Add these functions to your ML utilities section ###
+
+@st.cache_resource
+def load_time_prediction_model():
+    """Train and cache a cooking time prediction model"""
+    from sklearn.ensemble import RandomForestRegressor
+    
+    # Prepare data
+    df['ing_count'] = df['ing_list'].apply(len)
+    df['ing_length'] = df['ingredients'].str.len()
+    time_df = df.dropna(subset=['cook_min', 'ing_count', 'ing_length'])
+    
+    X = time_df[['ing_count', 'ing_length']]
+    y = time_df['cook_min']
+    
+    # Train model
+    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    model.fit(X, y)
+    return model
+
+def plot_cooking_tips(predicted_mins):
+    """Show visual tips based on predicted time"""
+    import plotly.express as px
+    
+    tips = {
+        "Quick Prep (<30min)": ["Chop veggies in advance", "Use pre-cooked proteins"],
+        "Medium (30-60min)": ["Multi-task steps", "Prep while cooking"],
+        "Long (>60min)": ["Use slow cooker", "Make double portions"]
+    }
+    
+    if predicted_mins < 30:
+        selected = "Quick Prep (<30min)"
+    elif predicted_mins < 60:
+        selected = "Medium (30-60min)"
+    else:
+        selected = "Long (>60min)"
+    
+    fig = px.bar(
+        x=list(tips.keys()),
+        y=[1, 1, 1],
+        color_discrete_sequence=['lightgray']*3,
+        title="Time-Saving Tips"
+    )
+    fig.update_traces(marker_color=['gold' if k == selected else 'lightgray' for k in tips.keys()])
+    fig.update_layout(showlegend=False, xaxis_title="", yaxis_title="")
+    st.plotly_chart(fig, use_container_width=True)
+    
+    st.write(f"**{selected} Tips:**")
+    for tip in tips[selected]:
+        st.write(f"- {tip}")
+
+### 2. Update the Time Saver page with error handling ###
+
+def page_time_predictor():
+    st.header("⏱️ Cooking Time Predictor")
+    
+    ing_input = st.text_area(
+        "Enter ingredients (comma separated)", 
+        "chicken, rice, vegetables",
+        key="time_predictor_input"  # Unique key
+    )
+    ing_count = st.slider(
+        "Number of ingredients", 
+        3, 20, 5,
+        key="time_predictor_count"  # Unique key
+    )
+    
+    if st.button("Predict", key="time_predictor_button"):
+        try:
+            model = load_time_prediction_model()
+            pred_mins = model.predict([[ing_count, len(ing_input)]])[0]
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("Estimated Time", f"{pred_mins:.0f} minutes")
+            with col2:
+                st.metric("Complexity", 
+                          "Easy" if pred_mins < 30 else 
+                          "Medium" if pred_mins < 60 else "Hard")
+            
+            plot_cooking_tips(pred_mins)
+            
+        except Exception as e:
+            st.error(f"Prediction failed: {str(e)}")
+            st.info("Try using simpler ingredients or reduce count")
+
+### 3. Add to your PAGES dictionary ###
 
 
+### 4. Add to your page router ###
+
+# Machine Learning Models
+@st.cache_resource
+def build_models():
+    # Load data
+    df = load_data()
+    
+    # Calculate health score if it doesn't exist
+    if 'health_score' not in df.columns:
+        alpha = 0.003
+        df['health_score'] = (df['protein_g'] * 2) - (df['fat_g'] + df['carb_g'] / 2) - (df['calories'] * alpha)
+    
+    # Recipe Recommender
+    vectorizer = TfidfVectorizer(tokenizer=lambda x: x, preprocessor=lambda x: x, token_pattern=None)
+    ing_matrix = vectorizer.fit_transform(df['ing_list'])
+    svd = TruncatedSVD(n_components=50, random_state=42)
+    reduced_features = svd.fit_transform(ing_matrix)
+    nn_model = NearestNeighbors(n_neighbors=5, metric='cosine')
+    nn_model.fit(reduced_features)
+    
+    # Nutrition Predictor
+    df['ing_count'] = df['ing_list'].apply(len)
+    df['has_meat'] = df['ingredients'].str.contains('chicken|beef|pork', case=False)
+    features = ['ing_count', 'has_meat', 'cook_min']
+    target = ['calories', 'protein_g', 'fat_g', 'carb_g']
+    
+    X = df[features].fillna(0)
+    nutrition_models = {
+        'calories': RandomForestRegressor().fit(X, df['calories'].fillna(0)),
+        'protein_g': RandomForestRegressor().fit(X, df['protein_g'].fillna(0)),
+        'fat_g': RandomForestRegressor().fit(X, df['fat_g'].fillna(0)),
+        'carb_g': RandomForestRegressor().fit(X, df['carb_g'].fillna(0))
+    }
+    
+    # Cooking Time Classifier
+    bins = [0, 15, 30, 60, 120, np.inf]
+    labels = ['Very Fast (<15m)', 'Fast (15-30m)', 'Medium (30-60m)', 'Slow (1-2h)', 'Very Slow (>2h)']
+    df['time_category'] = pd.cut(df['cook_min'], bins=bins, labels=labels)
+    
+    # Filter out rows with missing data
+    time_df = df.dropna(subset=['time_category', 'ing_list', 'ing_count'])
+    
+    time_vectorizer = TfidfVectorizer(max_features=100, tokenizer=lambda x: x, preprocessor=lambda x: x)
+    X_ing = time_vectorizer.fit_transform(time_df['ing_list'])
+    X_other = time_df[['ing_count']].fillna(0).values
+    X_time = np.hstack([X_ing.toarray(), X_other])
+    
+    le = LabelEncoder()
+    y_time = le.fit_transform(time_df['time_category'])
+    time_model = GradientBoostingClassifier().fit(X_time, y_time)
+    
+    # Health Score Model - use only columns that exist
+    health_cols = ['fat_g', 'carb_g', 'protein_g']
+    health_df = df.dropna(subset=health_cols).copy()
+    if 'health_score' in df.columns:
+        health_df = health_df.dropna(subset=['health_score'])
+    
+    X_health = health_df[health_cols].fillna(0)
+    y_health = health_df['health_score'] if 'health_score' in health_df.columns else (
+        (health_df['protein_g'] * 2) - (health_df['fat_g'] + health_df['carb_g'] / 2) - (health_df['calories'] * alpha)
+    )
+    health_model = Ridge(alpha=1.0).fit(X_health, y_health)
+    
+    return {
+        'recommender': (vectorizer, svd, nn_model),
+        'nutrition': (nutrition_models, features),
+        'time_classifier': (time_vectorizer, le, time_model),
+        'health_model': health_model,
+        'time_categories': labels
+    }
+models = build_models()
+
+# ML Utility Functions
+def recommend_similar_recipes(recipe_title, df):
+    try:
+        idx = df[df['title'] == recipe_title].index[0]
+        vectorizer, svd, nn_model = models['recommender']
+        recipe_features = svd.transform(vectorizer.transform([df.iloc[idx]['ing_list']]))
+        distances, indices = nn_model.kneighbors(recipe_features)
+        
+        recommendations = []
+        for i in range(1, len(indices[0])):
+            rec_idx = indices[0][i]
+            recommendations.append({
+                'title': df.iloc[rec_idx]['title'],
+                'category': df.iloc[rec_idx]['category'],
+                'similarity': 1 - distances[0][i],
+                'calories': df.iloc[rec_idx]['calories']
+            })
+        return pd.DataFrame(recommendations)
+    except:
+        return pd.DataFrame()
+
+def predict_nutrition(ingredient_count, has_meat, cook_time):
+    nutrition_models, feature_names = models['nutrition']
+    input_data = pd.DataFrame([[ingredient_count, has_meat, cook_time]], 
+                            columns=feature_names)
+    
+    predictions = {}
+    for nutrient, model in nutrition_models.items():
+        predictions[nutrient] = model.predict(input_data)[0]
+    
+    return predictions
+
+def predict_cooking_time_category(ingredients):
+    try:
+        time_vectorizer, le, time_model = models['time_classifier']
+        ing_list = [i.strip() for i in ingredients.split(';')]
+        ing_features = time_vectorizer.transform([ing_list])
+        other_features = np.array([[len(ing_list)]])
+        features = np.hstack([ing_features.toarray(), other_features])
+        
+        pred = time_model.predict(features)
+        return le.inverse_transform(pred)[0]
+    except Exception as e:
+        st.warning(f"Prediction failed: {str(e)}")
+        return "Unknown"
+
+def optimize_healthiness(current_fat, current_carb, current_protein):
+    health_model = models['health_model']
+    
+    def objective(x):
+        return -health_model.predict([[x[0], x[1], x[2]]])[0]
+    
+    cons = ({'type': 'ineq', 'fun': lambda x: x[2] - current_protein},
+            {'type': 'ineq', 'fun': lambda x: current_fat - x[0]},
+            {'type': 'ineq', 'fun': lambda x: current_carb - x[1]})
+    
+    x0 = [current_fat, current_carb, current_protein]
+    bounds = [(0, None), (0, None), (0, None)]
+    
+    result = minimize(objective, x0, constraints=cons, bounds=bounds)
+    
+    return {
+        'optimal_fat': result.x[0],
+        'optimal_carb': result.x[1],
+        'optimal_protein': result.x[2],
+        'predicted_health_score': -result.fun
+    }
+
+# Data Processing
 df = load_data()
-
-
 df["health_score"] = (df["protein_g"] * 2) - (df["fat_g"] + df["carb_g"] / 2)
-
-
 df["has_gluten"] = df["ingredients"].str.contains(r"(flour|wheat|barley)", flags=re.IGNORECASE, regex=True)
 df["has_nuts"] = df["ingredients"].str.contains(r"(almond|cashew|walnut|pecan|hazelnut)", flags=re.IGNORECASE, regex=True)
 df["has_dairy"] = df["ingredients"].str.contains(r"(milk|cheese|butter|cream)", flags=re.IGNORECASE, regex=True)
+df['ing_count'] = df['ing_list'].apply(len)
 
-###############################################################################
-# 4. Sidebar navigation
-###############################################################################
-
+# Pages
 PAGES = {
     "Category Overview": "overview",
     "Nutrition Explorer": "nutrition",
@@ -113,6 +338,8 @@ PAGES = {
     "Recipe Explorer": "recipe",
     "Meal Planner": "planner",
     "Health & Allergen Insights": "health",
+    "For You": "personalized",
+    "Time Saver": "timesaver",
 }
 
 with st.sidebar:
@@ -120,8 +347,6 @@ with st.sidebar:
     page = st.radio("Go to", list(PAGES.keys()))
     st.markdown("---")
     st.write("Total recipes:", len(df))
-
-
 
 def page_overview():
     st.header(" Average Calories per Category")
@@ -196,6 +421,20 @@ def page_ingredients():
         use_container_width=True,
     )
     
+    st.subheader("Ingredient Impact Analysis")
+    selected_ing = st.selectbox("Analyze an ingredient", common['ingredient'].head(20))
+    
+    with_ing = df[df['ingredients'].str.contains(selected_ing, case=False)]
+    without_ing = df[~df['ingredients'].str.contains(selected_ing, case=False)]
+    
+    if not with_ing.empty and not without_ing.empty:
+        st.write(f"**Nutritional comparison (with vs without {selected_ing})**")
+        comparison = pd.DataFrame({
+            'With': with_ing[['calories', 'fat_g', 'carb_g', 'protein_g']].mean(),
+            'Without': without_ing[['calories', 'fat_g', 'carb_g', 'protein_g']].mean()
+        })
+        st.dataframe(comparison.style.background_gradient())
+    
 def page_quick():
     st.header("Quick & Easy")
     quick = df[df.cook_min <= 30]
@@ -208,7 +447,6 @@ def page_quick():
         mime="text/csv",
     )
     st.subheader("Most complex recipes (ingredient count)")
-    df["ing_count"] = df.ing_list.apply(len)
     st.dataframe(df.nlargest(20, "ing_count")[["title", "ing_count", "category"]])
     
 def page_trends():
@@ -278,9 +516,39 @@ def page_recipe():
     st.markdown("### Ingredients")
     for ing in row.ing_list:
         st.write(f"• {ing}")
-    st.write("---")
     
-
+    st.markdown("### Similar Recipes")
+    similar = recommend_similar_recipes(title, df)
+    if not similar.empty:
+        st.dataframe(similar)
+    
+    st.markdown("### Cooking Time Prediction")
+    predicted_time = predict_cooking_time_category(";".join(row.ing_list))
+    st.write(f"Predicted cooking time category: **{predicted_time}**")
+    
+    st.write("---")
+    st.subheader("Similar Recipes")
+    if st.button("Find Similar Recipes"):
+        models = build_models(df)
+        vectorizer, svd, nn_model = models['recommender']
+        
+        # Get similar recipes
+        recipe_features = svd.transform(vectorizer.transform([row['ing_list']]))
+        distances, indices = nn_model.kneighbors(recipe_features)
+        
+        similar_recipes = []
+        for i in range(1, 5):  # Get top 4 similar recipes
+            similar_idx = indices[0][i]
+            similar_recipes.append(df.iloc[similar_idx])
+        
+        for recipe in similar_recipes:
+            with st.expander(recipe['title']):
+                st.write(f"Category: {recipe['category']}")
+                st.write(f"Calories: {recipe['calories']}")
+                st.write("Ingredients:")
+                for ing in recipe['ing_list']:
+                    st.write(f"- {ing}")
+    
 def page_planner():
     st.header("Weekly Meal Planner")
   
@@ -387,7 +655,6 @@ def page_planner():
 def page_health_allergen():
     st.header("Health & Allergen Insights")
     
- 
     ALLERGEN_PATTERNS = {
         "gluten": [
         r"\b(flour|wheat|barley|pasta|rye|malt|bulgur|farina|spelt|african emmer|farro|seitan|triticale|bread|couscous|matzo|orge|udon|soba|dinkel|graham)\b"
@@ -398,7 +665,6 @@ def page_health_allergen():
     "dairy": [
         r"\b(milk|cheese|butter|cream|yogurt|whey|casein|lactose|ghee|curds|custard|galactose|ice cream|kefir|lactalbumin|buttermilk|cream cheese|sour cream|whipped cream|half-and-half)\b"
     ]
-        
     }
 
     def detect_allergens(ingredient_list: str) -> dict:
@@ -408,7 +674,7 @@ def page_health_allergen():
             for allergen, patterns in ALLERGEN_PATTERNS.items()
         }
 
-    # Apply allergen detection to the DataFrame with validation
+    # Apply allergen detection
     for allergen in ALLERGEN_PATTERNS:
         df[f"has_{allergen}"] = df["ingredients"].apply(
             lambda x: detect_allergens(x)[allergen]
@@ -416,6 +682,7 @@ def page_health_allergen():
 
     alpha = 0.003
     
+ 
     def calculate_health_score(row):
         """Adjusted health score: protein benefit minus fat, carbs and a calorie penalty"""
         protein = row["protein_g"] if pd.notna(row["protein_g"]) else 0
@@ -426,7 +693,6 @@ def page_health_allergen():
     
     df["health_score"] = df.apply(calculate_health_score, axis=1)
     
-   
     features = ["calories", "fat_g", "carb_g", "protein_g", "cook_min"]
     df_ml = df.dropna(subset=features + ["health_score"]).copy()
     
@@ -446,7 +712,6 @@ def page_health_allergen():
     
     pipeline.fit(X_train, y_train)
     
-
     st.subheader("Allergen-Free Recipes")
     
     required_allergen_cols = ["has_gluten", "has_nuts", "has_dairy"]
@@ -473,13 +738,11 @@ def page_health_allergen():
     removed = df.drop(filtered.index)
     st.write(f"**Allergen-Free Recipes:** {len(filtered)}")
     
-    
     if len(filtered) == 0:
         st.warning("No recipes match all selected allergen filters")
     else:
         st.dataframe(filtered[["title", "category"]].sort_values("title"), height=500)
     
-
     st.subheader("Healthiest Recipes")
     
     df_ml["prediction"] = pipeline.predict(df_ml[features])
@@ -497,6 +760,7 @@ def page_health_allergen():
                 st.success("Verified Health Rating")
             else:
                 st.warning("Moderate Confidence Rating")
+    
     
 
     def _run_validations():
@@ -529,6 +793,105 @@ def page_health_allergen():
     except AssertionError as e:
         st.error(f"Validation Error: {str(e)}")
         st.stop()
+def hybrid_recommendation_engine(df, fav_ingredients, health_goal):
+    """Generate normalized recommendations (0-100% scale)"""
+    if not fav_ingredients:
+        fav_ingredients = list(keyword_bank().keys())  # Default to all categories
+    
+    # 1. Calculate ingredient match score (0-100)
+    def calc_ingredient_match(recipe_ings):
+        matched = sum(1 for ing in recipe_ings if ing in fav_ingredients)
+        return min(100, (matched / max(1, len(fav_ingredients)) * 100) ) # Prevent division by zero
+    
+    df['ingredient_score'] = df['ing_list'].apply(calc_ingredient_match)
+    
+    # 2. Calculate health score (0-100)
+    if health_goal == "High-Protein":
+        health_score = (df['protein_g'] / df['protein_g'].max()) * 100
+    elif health_goal == "Low-Carb":
+        health_score = (1 - (df['carb_g'] / df['carb_g'].max())) * 100
+    else:  # Balanced
+        health_score = pd.Series(50, index=df.index)  # Neutral baseline as Series
+    
+    # Ensure health_score is a Series before clipping
+    if isinstance(health_score, (int, float)):
+        health_score = pd.Series(health_score, index=df.index)
+    
+    df['health_score'] = health_score.clip(0, 100)  # Now works with Pandas Series
+    
+    # 3. Combine scores (weighted average)
+    df['match_score'] = (df['ingredient_score'] * 0.6) + (df['health_score'] * 0.4)
+    
+    return df.nlargest(5, 'match_score')[['title', 'category', 'ing_list', 'match_score', 'ingredient_score', 'health_score']] \
+           .to_dict('records')
+
+def page_personalized_recommendations():
+    st.header("🍳 Recipes You'll Love")
+    
+    with st.form("preferences_form"):
+        st.subheader("Tell us what you like")
+        fav_ingredients = st.multiselect(
+            "Favorite ingredients", 
+            options=list(keyword_bank().keys()),
+            key="fav_ingredients_multiselect"
+        )
+        health_goal = st.selectbox(
+            "Health goal", 
+            ["Balanced", "High-Protein", "Low-Carb"],
+            key="health_goal_select"
+        )
+        submitted = st.form_submit_button("Get Recommendations")
+    
+    if submitted:
+        try:
+            recommended = hybrid_recommendation_engine(
+                df.copy(),  # Work with a copy
+                fav_ingredients, 
+                health_goal
+            )
+            
+            if not recommended:
+                st.warning("No recipes match your preferences. Try different selections.")
+                return
+            
+            st.success("Top Recommendations For You:")
+            for i, recipe in enumerate(recommended, 1):
+                with st.expander(f"#{i}: {recipe['title']} ({recipe['match_score']:.0f}% match)"):
+                    col1, col2 = st.columns(2)
+                    with col1:
+                        st.write(f"**Category**: {recipe['category']}")
+                        st.write(f"**Ingredients Score**: {recipe['ingredient_score']:.0f}%")
+                    with col2:
+                        st.write(f"**Health Score**: {recipe['health_score']:.0f}%")
+                        st.write(f"**Goal**: {health_goal}")
+                    
+                    st.write("**Matching Ingredients**:")
+                    matched_ings = [ing for ing in recipe['ing_list'] if ing in fav_ingredients]
+                    st.write(", ".join(matched_ings[:5]) + ("..." if len(matched_ings) > 5 else ""))
+                    
+        except Exception as e:
+            st.error(f"Recommendation failed: {str(e)}")
+            st.info("Try selecting more ingredients or different health goals")
+def train_time_model(df):
+    df['ing_count'] = df['ing_list'].str.len()
+    X = df[['ing_count', 'cook_min']].dropna()
+    y = X.pop('cook_min')
+    return RandomForestRegressor().fit(X, y)
+
+def page_time_predictor():
+    st.header("⏱️ Cooking Time Predictor")
+    
+    ing_input = st.text_area("Enter ingredients (comma separated)", "chicken, rice, vegetables")
+    ing_count = st.slider("Number of ingredients", 3, 20, 5)
+    
+    if st.button("Predict"):
+        # Load pre-trained model
+        model = load_time_prediction_model()  
+        pred_mins = model.predict([[ing_count, len(ing_input.split(","))]])[0]
+        
+        st.metric("Estimated Cooking Time", f"{pred_mins:.0f} minutes")
+        plot_cooking_tips(pred_mins)
+
 
 
 if page == "Category Overview":
@@ -551,5 +914,7 @@ elif page == "Meal Planner":
     page_planner()
 elif page == "Health & Allergen Insights":
     page_health_allergen()
-
- 
+elif page == "For You":
+    page_personalized_recommendations()
+elif page == "Time Saver":
+    page_time_predictor()
