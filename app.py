@@ -307,6 +307,8 @@ PAGES = {
     "Weekly Meal Planner": "planner",
     "Health & Allergen Insights": "health",
     "Personalized Recommendations": "personalized",
+    "NLP Recipe Analysis": "nlp",  # Add this line
+  
 
 }
 
@@ -841,7 +843,93 @@ def page_personalized_recommendations():
             st.error(f"Recommendation failed: {str(e)}")
             st.info("Try selecting more ingredients or different health goals")
 
-
+def page_nlp_analysis():
+    st.header("NLP Recipe Analysis")
+    
+    # Section 1: Recipe Similarity Search
+    st.subheader("Find Similar Recipes by Description")
+    recipe_text = st.text_area("Describe what you're looking for (e.g., 'quick vegetarian pasta with fresh herbs')")
+    
+    if recipe_text and st.button("Find Similar Recipes"):
+        with st.spinner("Analyzing recipes..."):
+            from sklearn.feature_extraction.text import TfidfVectorizer
+            from sklearn.metrics.pairwise import cosine_similarity
+            
+            # Create a combined text feature for each recipe
+            df['combined_text'] = df['title'] + " " + df['ingredients'] + " " + df['category']
+            
+            # Vectorize all recipes and the query
+            vectorizer = TfidfVectorizer(stop_words='english')
+            recipe_vectors = vectorizer.fit_transform(df['combined_text'])
+            query_vector = vectorizer.transform([recipe_text])
+            
+            # Calculate similarities
+            similarities = cosine_similarity(query_vector, recipe_vectors).flatten()
+            
+            # Get top 5 matches
+            top_indices = similarities.argsort()[-5:][::-1]
+            results = df.iloc[top_indices].copy()
+            results['similarity'] = similarities[top_indices]
+            
+            # Display results
+            for idx, row in results.iterrows():
+                with st.expander(f"{row['title']} (Similarity: {row['similarity']:.2f})"):
+                    st.write(f"**Category:** {row['category']}")
+                    st.write(f"**Cooking Time:** {row['cooking_time']}")
+                    st.write("**Ingredients:**")
+                    for ing in row['ing_list']:
+                        st.write(f"- {ing}")
+    
+   
+    
+    
+    # Section 2: Recipe Complexity Analysis
+    st.subheader("Recipe Complexity Analysis")
+    
+    # Calculate complexity metrics
+    df['word_count'] = df['ingredients'].apply(lambda x: len(str(x).split()))
+    df['unique_ingredients'] = df['ing_list'].apply(lambda x: len(set(i.lower() for i in x)))
+    
+    complexity_metric = st.selectbox(
+        "Complexity metric",
+        ["Ingredient Count", "Unique Ingredients", "Word Count"],
+        index=0
+    )
+    
+    if complexity_metric == "Ingredient Count":
+        metric_col = 'ing_count'
+    elif complexity_metric == "Unique Ingredients":
+        metric_col = 'unique_ingredients'
+    else:
+        metric_col = 'word_count'
+    
+    # Plot distribution
+    st.altair_chart(
+        alt.Chart(df).mark_bar().encode(
+            x=alt.X(f'{metric_col}:Q', bin=alt.Bin(maxbins=30)),
+            y='count()'
+        ).properties(
+            title=f"Distribution of {complexity_metric}"
+        ),
+        use_container_width=True
+    )
+    
+    # Show most/least complex recipes
+    col1, col2 = st.columns(2)
+    with col1:
+        st.write("Most Complex Recipes")
+        st.dataframe(
+            df.nlargest(5, metric_col)[['title', metric_col, 'category']]
+            .rename(columns={metric_col: 'Complexity Score'}),
+            height=300
+        )
+    with col2:
+        st.write("Least Complex Recipes")
+        st.dataframe(
+            df.nsmallest(5, metric_col)[['title', metric_col, 'category']]
+            .rename(columns={metric_col: 'Complexity Score'}),
+            height=300
+        )
 
 if page == "Nutrition Overview":
     page_overview()
@@ -863,4 +951,6 @@ elif page == "Health & Allergen Insights":
     page_health_allergen()
 elif page == "Personalized Recommendations":
     page_personalized_recommendations()
+elif page == "NLP Recipe Analysis":
+    page_nlp_analysis()
 
