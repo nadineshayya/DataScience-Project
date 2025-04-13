@@ -141,38 +141,6 @@ def plot_cooking_tips(predicted_mins):
 
 ### 2. Update the Time Saver page with error handling ###
 
-def page_time_predictor():
-    st.header("⏱️ Cooking Time Predictor")
-    
-    ing_input = st.text_area(
-        "Enter ingredients (comma separated)", 
-        "chicken, rice, vegetables",
-        key="time_predictor_input"  # Unique key
-    )
-    ing_count = st.slider(
-        "Number of ingredients", 
-        3, 20, 5,
-        key="time_predictor_count"  # Unique key
-    )
-    
-    if st.button("Predict", key="time_predictor_button"):
-        try:
-            model = load_time_prediction_model()
-            pred_mins = model.predict([[ing_count, len(ing_input)]])[0]
-            
-            col1, col2 = st.columns(2)
-            with col1:
-                st.metric("Estimated Time", f"{pred_mins:.0f} minutes")
-            with col2:
-                st.metric("Complexity", 
-                          "Easy" if pred_mins < 30 else 
-                          "Medium" if pred_mins < 60 else "Hard")
-            
-            plot_cooking_tips(pred_mins)
-            
-        except Exception as e:
-            st.error(f"Prediction failed: {str(e)}")
-            st.info("Try using simpler ingredients or reduce count")
 
 ### 3. Add to your PAGES dictionary ###
 
@@ -328,18 +296,18 @@ df['ing_count'] = df['ing_list'].apply(len)
 
 # Pages
 PAGES = {
-    "Category Overview": "overview",
-    "Nutrition Explorer": "nutrition",
-    "Ingredients Lab": "ingredients",
-    "Quick & Easy": "quick",
-    "Publishing Trends": "trends",
-    "Seasonality": "season",
+    "Nutrition Overview": "overview",
+    "Nutrition & Cooking Time": "nutrition",
+    "Ingredient Analysis": "ingredients",
+    "Speedy & Complex Recipes": "quick",
+ 
+    "Seasonal Recipe Calendar": "season",
     "Ingredient Pairs": "pairs",
-    "Recipe Explorer": "recipe",
-    "Meal Planner": "planner",
+    "Discover Recipes": "recipe",
+    "Weekly Meal Planner": "planner",
     "Health & Allergen Insights": "health",
-    "For You": "personalized",
-    "Time Saver": "timesaver",
+    "Personalized Recommendations": "personalized",
+
 }
 
 with st.sidebar:
@@ -403,7 +371,7 @@ def page_nutrition():
     st.dataframe(filt[["title", "calories", "protein_g", "cook_min"]])
     
 def page_ingredients():
-    st.header("Ingredients Lab")
+  
     st.subheader("Most Common Ingredients")
     cat_choice = st.selectbox("Choose a category for common ingredients", 
                               options=["All"] + sorted(df.category.unique()))
@@ -420,21 +388,7 @@ def page_ingredients():
         ),
         use_container_width=True,
     )
-    
-    st.subheader("Ingredient Impact Analysis")
-    selected_ing = st.selectbox("Analyze an ingredient", common['ingredient'].head(20))
-    
-    with_ing = df[df['ingredients'].str.contains(selected_ing, case=False)]
-    without_ing = df[~df['ingredients'].str.contains(selected_ing, case=False)]
-    
-    if not with_ing.empty and not without_ing.empty:
-        st.write(f"**Nutritional comparison (with vs without {selected_ing})**")
-        comparison = pd.DataFrame({
-            'With': with_ing[['calories', 'fat_g', 'carb_g', 'protein_g']].mean(),
-            'Without': without_ing[['calories', 'fat_g', 'carb_g', 'protein_g']].mean()
-        })
-        st.dataframe(comparison.style.background_gradient())
-    
+  
 def page_quick():
     st.header("Quick & Easy")
     quick = df[df.cook_min <= 30]
@@ -449,13 +403,10 @@ def page_quick():
     st.subheader("Most complex recipes (ingredient count)")
     st.dataframe(df.nlargest(20, "ing_count")[["title", "ing_count", "category"]])
     
-def page_trends():
-    st.header("Publishing Trends (30‑day rolling)")
-    ts = df.groupby("publish_date").size().rolling(30).mean().dropna().reset_index(name="count")
-    st.line_chart(ts.set_index("publish_date"))
+
     
 def page_season():
-    st.header("Seasonal Calendar Heat‑map")
+    st.header("Seasonal Calendar")
     df_cal = df.copy()
     df_cal["date"] = pd.to_datetime(df_cal["publish_date"])
     df_cal = df_cal.dropna(subset=["date"])
@@ -794,14 +745,19 @@ def page_health_allergen():
         st.error(f"Validation Error: {str(e)}")
         st.stop()
 def hybrid_recommendation_engine(df, fav_ingredients, health_goal):
-    """Generate normalized recommendations (0-100% scale)"""
+    """Generate normalized recommendations (0-100% scale)
+       using ingredient categories for matching.
+    """
     if not fav_ingredients:
         fav_ingredients = list(keyword_bank().keys())  # Default to all categories
-    
+
     # 1. Calculate ingredient match score (0-100)
     def calc_ingredient_match(recipe_ings):
-        matched = sum(1 for ing in recipe_ings if ing in fav_ingredients)
-        return min(100, (matched / max(1, len(fav_ingredients)) * 100) ) # Prevent division by zero
+        # Convert each ingredient to its category using classify_ing.
+        # Using a set ensures each category is counted only once.
+        classified = {classify_ing(ing) for ing in recipe_ings}
+        matched = sum(1 for cat in classified if cat in fav_ingredients)
+        return min(100, (matched / max(1, len(fav_ingredients)) * 100))
     
     df['ingredient_score'] = df['ing_list'].apply(calc_ingredient_match)
     
@@ -813,20 +769,19 @@ def hybrid_recommendation_engine(df, fav_ingredients, health_goal):
     else:  # Balanced
         health_score = pd.Series(50, index=df.index)  # Neutral baseline as Series
     
-    # Ensure health_score is a Series before clipping
     if isinstance(health_score, (int, float)):
         health_score = pd.Series(health_score, index=df.index)
     
-    df['health_score'] = health_score.clip(0, 100)  # Now works with Pandas Series
+    df['health_score'] = health_score.clip(0, 100)
     
     # 3. Combine scores (weighted average)
     df['match_score'] = (df['ingredient_score'] * 0.6) + (df['health_score'] * 0.4)
     
-    return df.nlargest(5, 'match_score')[['title', 'category', 'ing_list', 'match_score', 'ingredient_score', 'health_score']] \
-           .to_dict('records')
+    return df.nlargest(5, 'match_score')[['title', 'category', 'ing_list', 'match_score', 'ingredient_score', 'health_score']].to_dict('records')
+
 
 def page_personalized_recommendations():
-    st.header("🍳 Recipes You'll Love")
+    st.header("Recipes You'll Love")
     
     with st.form("preferences_form"):
         st.subheader("Tell us what you like")
@@ -844,8 +799,9 @@ def page_personalized_recommendations():
     
     if submitted:
         try:
+            # hybrid_recommendation_engine uses ML-based components along with heuristic matching
             recommended = hybrid_recommendation_engine(
-                df.copy(),  # Work with a copy
+                df.copy(),  # Work with a copy of your DataFrame
                 fav_ingredients, 
                 health_goal
             )
@@ -866,55 +822,45 @@ def page_personalized_recommendations():
                         st.write(f"**Goal**: {health_goal}")
                     
                     st.write("**Matching Ingredients**:")
-                    matched_ings = [ing for ing in recipe['ing_list'] if ing in fav_ingredients]
-                    st.write(", ".join(matched_ings[:5]) + ("..." if len(matched_ings) > 5 else ""))
+                    # Enhanced matching: classify each ingredient and check for a category match against favorites
+                    matched_ings = []
+                    for ing in recipe['ing_list']:
+                        category = classify_ing(ing)
+                        if category in fav_ingredients:
+                            matched_ings.append(f"{ing} ({category})")
                     
+                    if matched_ings:
+                        display_text = ", ".join(matched_ings[:5])
+                        if len(matched_ings) > 5:
+                            display_text += "..."
+                        st.write(display_text)
+                    else:
+                        st.write("No matching ingredients found.")
+                        
         except Exception as e:
             st.error(f"Recommendation failed: {str(e)}")
             st.info("Try selecting more ingredients or different health goals")
-def train_time_model(df):
-    df['ing_count'] = df['ing_list'].str.len()
-    X = df[['ing_count', 'cook_min']].dropna()
-    y = X.pop('cook_min')
-    return RandomForestRegressor().fit(X, y)
-
-def page_time_predictor():
-    st.header("⏱️ Cooking Time Predictor")
-    
-    ing_input = st.text_area("Enter ingredients (comma separated)", "chicken, rice, vegetables")
-    ing_count = st.slider("Number of ingredients", 3, 20, 5)
-    
-    if st.button("Predict"):
-        # Load pre-trained model
-        model = load_time_prediction_model()  
-        pred_mins = model.predict([[ing_count, len(ing_input.split(","))]])[0]
-        
-        st.metric("Estimated Cooking Time", f"{pred_mins:.0f} minutes")
-        plot_cooking_tips(pred_mins)
 
 
 
-if page == "Category Overview":
+if page == "Nutrition Overview":
     page_overview()
-elif page == "Nutrition Explorer":
+elif page == "Nutrition & Cooking Time":
     page_nutrition()
-elif page == "Ingredients Lab":
+elif page == "Ingredient Analysis":
     page_ingredients()
-elif page == "Quick & Easy":
+elif page == "Speedy & Complex Recipes":
     page_quick()
-elif page == "Publishing Trends":
-    page_trends()
-elif page == "Seasonality":
+elif page == "Seasonal Recipe Calendar":
     page_season()
 elif page == "Ingredient Pairs":
     page_pairs()
-elif page == "Recipe Explorer":
+elif page == "Discover Recipes":
     page_recipe()
-elif page == "Meal Planner":
+elif page == "Weekly Meal Planner":
     page_planner()
 elif page == "Health & Allergen Insights":
     page_health_allergen()
-elif page == "For You":
+elif page == "Personalized Recommendations":
     page_personalized_recommendations()
-elif page == "Time Saver":
-    page_time_predictor()
+
