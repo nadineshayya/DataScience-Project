@@ -139,13 +139,10 @@ def plot_cooking_tips(predicted_mins):
     for tip in tips[selected]:
         st.write(f"- {tip}")
 
-### 2. Update the Time Saver page with error handling ###
 
 
-### 3. Add to your PAGES dictionary ###
 
 
-### 4. Add to your page router ###
 
 # Machine Learning Models
 @st.cache_resource
@@ -300,14 +297,13 @@ PAGES = {
     "Nutrition & Cooking Time": "nutrition",
     "Ingredient Analysis": "ingredients",
     "Speedy & Complex Recipes": "quick",
- 
     "Seasonal Recipe Calendar": "season",
     "Ingredient Pairs": "pairs",
     "Discover Recipes": "recipe",
     "Weekly Meal Planner": "planner",
     "Health & Allergen Insights": "health",
     "Personalized Recommendations": "personalized",
-    "NLP Recipe Analysis": "nlp",  # Add this line
+    "NLP Recipe Analysis": "nlp",  
   
 
 }
@@ -769,7 +765,7 @@ def hybrid_recommendation_engine(df, fav_ingredients, health_goal):
     elif health_goal == "Low-Carb":
         health_score = (1 - (df['carb_g'] / df['carb_g'].max())) * 100
     else:  # Balanced
-        health_score = pd.Series(50, index=df.index)  # Neutral baseline as Series
+        health_score = pd.Series(50, index=df.index)  
     
     if isinstance(health_score, (int, float)):
         health_score = pd.Series(health_score, index=df.index)
@@ -803,7 +799,7 @@ def page_personalized_recommendations():
         try:
             # hybrid_recommendation_engine uses ML-based components along with heuristic matching
             recommended = hybrid_recommendation_engine(
-                df.copy(),  # Work with a copy of your DataFrame
+                df.copy(),  
                 fav_ingredients, 
                 health_goal
             )

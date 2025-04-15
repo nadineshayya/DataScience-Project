@@ -296,7 +296,7 @@ def main():
     categories = load_or_discover_categories(driver_for_cats)
     driver_for_cats.quit()
 
-    # For demo: limit to first 22 categories
+    # limit to first 22 categories
     limited_category_urls = categories[:22]
     with open(CATEGORIES_FILE, 'w', encoding='utf-8') as f:
         json.dump(limited_category_urls, f, indent=2)

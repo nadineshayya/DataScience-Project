@@ -49,16 +49,13 @@ def get_all_categories(driver):
         href = a['href']
         # Filter only category pages
         if href.startswith("https://www.allrecipes.com/recipes/") and href != main_url:
-            # Example: "https://www.allrecipes.com/recipes/76/appetizers-and-snacks/" 
+          
             if re.search(r"/recipes/\d+/", href):
                 category_links.add(href)
     return list(category_links)
 
 def load_or_discover_categories(driver):
-    """
-    If categories.json exists, load categories from it.
-    Otherwise, discover categories from AllRecipes and save to categories.json.
-    """
+ 
     if os.path.exists(CATEGORIES_FILE):
         with open(CATEGORIES_FILE, 'r', encoding='utf-8') as f:
             category_urls = json.load(f)
@@ -72,9 +69,9 @@ def load_or_discover_categories(driver):
     return category_urls
 
 def get_recipe_links(page_url, driver):
-    """
-    Retrieve all unique recipe URLs from a given category page.
-    """
+    
+   # Retrieve all unique recipe URLs from a given category page.
+    
     driver.get(page_url)
     time.sleep(1)  # Reduced wait time
     soup = BeautifulSoup(driver.page_source, 'html.parser')
@@ -86,17 +83,9 @@ def get_recipe_links(page_url, driver):
     return list(recipe_links)
 
 def scrape_recipe(url, driver):
-    """
-    Scrape details from a single recipe page.
-    Returns a dictionary including:
-      - url
-      - title
-      - ingredients
-      - cooking_time
-      - nutrition_facts
-      - publish_date
-      - scraped_date (timestamp)
-    """
+ 
+    # Scrape details from a single recipe page.
+  
     driver.get(url)
     title = None
 
@@ -238,10 +227,10 @@ def scrape_recipe(url, driver):
         }
 
 def scrape_category(category_url, driver):
-    """
-    Scrape all recipes from a given category URL by iterating through paginated pages.
-    Stops when no new unique recipe links are found.
-    """
+ 
+    #Scrape all recipes from a given category URL by iterating through paginated pages.
+    #Stops when no new unique recipe links are found.
+  
     recipes = []
     seen_urls = set()
     category_name = category_url.rstrip('/').split('/')[-1]
@@ -285,12 +274,7 @@ def scrape_one_category(category_url):
         driver.quit()
 
 def clean_data(df):
-    """
-    Clean the DataFrame:
-      - Remove rows where the title is 'Title not found' or where ingredients are missing
-      - Replace publish_date 'Not found' with 'Unknown publish date'
-      - Replace cooking_time 'Not found' with 'Unknown cooking time'
-    """
+  
     # Check if the DataFrame has the expected 'title' column
     if 'title' not in df.columns:
         print("Warning: 'title' column not found in DataFrame. Skipping cleaning.")

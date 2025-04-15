@@ -19,7 +19,7 @@ MAX_CATEGORIES = 18
 
 def init_driver():
     options = webdriver.ChromeOptions()
-    # --- Edit: Set page load strategy to "eager" to avoid waiting for full load ---
+ 
     options.page_load_strategy = "eager"
     options.add_argument('--headless')
     options.add_argument('--disable-gpu')
@@ -40,7 +40,7 @@ def init_driver():
     }
     options.add_experimental_option("prefs", prefs)
     driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
-    # --- Edit: Set a lower page load timeout (30 seconds) ---
+    # Set a lower page load timeout (30 seconds)
     driver.set_page_load_timeout(30)
     return driver
 
@@ -135,7 +135,7 @@ def scrape_recipe(url, driver, retries=2):
             except Exception as stop_e:
                 print(f"Error stopping page load for {url}: {stop_e}")
         try:
-            # --- Edit: Lower WebDriverWait to 10 seconds ---
+            #  WebDriverWait to 10 seconds 
             WebDriverWait(driver, 30).until(
                 EC.presence_of_element_located((By.CSS_SELECTOR, "h1.heading__title"))
             )
@@ -210,7 +210,6 @@ def scrape_category(category_info, driver):
     recipes = []
     seen_urls = set()
     category_name = category_info['name']
-    # Note: We no longer insert parent_category into the recipe data.
     category_url = category_info['url']
     
     print(f"Scraping category: {category_name} ({category_info['parent_category']})")
