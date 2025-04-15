@@ -5,22 +5,19 @@ from datetime import datetime
 import os
 
 def clean_url(url):
-    """Trim extra whitespace from the URL; return 'not found' if missing."""
+    #Trim extra whitespace from the URL; return 'not found' if missing.
     if pd.isna(url) or not str(url).strip():
         return "not found"
     return str(url).strip()
 
 def clean_title(title):
-    """Trim extra whitespace from the title; return 'not found' if missing."""
+   # trim extra whitespace from the title; return 'not found' if missing.
     if pd.isna(title) or not str(title).strip():
         return "not found"
     return str(title).strip()
 
 def clean_ingredients(ingredients):
-    """
-    Standardize the ingredients into a uniform semicolon-separated string.
-    Remove any measurement units and special characters, keeping just the ingredient names.
-    """
+
     if pd.isna(ingredients) or not str(ingredients).strip():
         return "not found"
     
@@ -101,9 +98,9 @@ def clean_nutrition_facts(nutrition):
     )
 
 def clean_cooking_time(time_str):
-    """
-    Standardize cooking time to minutes only or 'X hr Y min' format.
-    """
+    
+    #Standardize cooking time to minutes only or 'X hr Y min' format.
+    
     if pd.isna(time_str) or not str(time_str).strip():
         return "not found"
     
@@ -167,21 +164,8 @@ def standardize_scraped_date(date_str):
         return "not found"
 
 def clean_category(category):
-    """
-    Standardize category to lowercase with underscores and merge similar categories.
-    
-    Quick Meals Group:
-      - Merge "30_minute_meals", "quick_and_easy", and "one_pot_meals" into "quick_meals_group".
-      
-    Desserts Group:
-      - Merge "dessert", "desserts", "cake", "sweet_pies", "cupcakes_and_muffins", and "cookies" into "desserts".
-      
-    Additional merges:
-      - Merge "dinner" into "main_dishes".
-      - Merge "rice_side_dishes" into "side_dishes".
-      - Merge "asian_soups" into "soup".
-      - Merge "vegetables" into "fruit_veggie".
-    """
+   
+   
     if pd.isna(category) or not str(category).strip():
         return "not found"
     
